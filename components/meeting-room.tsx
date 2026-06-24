@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   LiveKitRoom,
@@ -13,6 +13,10 @@ import { LoaderCircle, Video } from "lucide-react";
 import { DisconnectReason } from "livekit-client";
 
 import { MeetingControls } from "@/components/meeting-controls";
+import {
+  ActivePartialScreenShare,
+  PartialScreenShareModal,
+} from "@/components/PartialScreenShareModal";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { VideoGrid } from "@/components/video-grid";
 import { Button } from "@/components/ui/button";
@@ -175,12 +179,35 @@ function MeetingShell({
 }) {
   const connectionState = useConnectionState();
   const room = useRoomContext();
+  const activePartialShareRef = useRef<ActivePartialScreenShare | null>(null);
+  const [isPartialShareModalOpen, setIsPartialShareModalOpen] = useState(false);
+  const [isPartialShareActive, setIsPartialShareActive] = useState(false);
   const {
     localParticipant,
     isCameraEnabled,
     isMicrophoneEnabled,
     isScreenShareEnabled,
   } = useLocalParticipant();
+
+  useEffect(() => {
+    return () => {
+      const activeShare = activePartialShareRef.current;
+
+      if (activeShare) {
+        void activeShare.stop();
+      }
+    };
+  }, []);
+
+  async function stopPartialShare() {
+    const activeShare = activePartialShareRef.current;
+
+    if (!activeShare) {
+      return;
+    }
+
+    await activeShare.stop();
+  }
 
   return (
     <>
@@ -209,12 +236,31 @@ function MeetingShell({
             isCameraEnabled={isCameraEnabled}
             isMicrophoneEnabled={isMicrophoneEnabled}
             isScreenShareEnabled={isScreenShareEnabled}
+            isPartialShareActive={isPartialShareActive}
             localParticipant={localParticipant}
             room={room}
+            onOpenPartialShare={() => setIsPartialShareModalOpen(true)}
+            onStopPartialShare={stopPartialShare}
           />
         </div>
       </main>
       <RoomAudioRenderer />
+      {isPartialShareModalOpen ? (
+        <PartialScreenShareModal
+          open={isPartialShareModalOpen}
+          room={room}
+          onClose={() => setIsPartialShareModalOpen(false)}
+          onStarted={(session) => {
+            activePartialShareRef.current = session;
+            setIsPartialShareActive(true);
+            setIsPartialShareModalOpen(false);
+          }}
+          onStopped={() => {
+            activePartialShareRef.current = null;
+            setIsPartialShareActive(false);
+          }}
+        />
+      ) : null}
     </>
   );
 }

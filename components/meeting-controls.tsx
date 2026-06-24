@@ -7,6 +7,7 @@ import {
   MicOff,
   MonitorUp,
   PhoneOff,
+  Scan,
   Video,
   VideoOff,
 } from "lucide-react";
@@ -19,16 +20,22 @@ type MeetingControlsProps = {
   isCameraEnabled: boolean;
   isMicrophoneEnabled: boolean;
   isScreenShareEnabled: boolean;
+  isPartialShareActive: boolean;
   localParticipant: LocalParticipant;
   room: Room;
+  onOpenPartialShare: () => void;
+  onStopPartialShare: () => Promise<void>;
 };
 
 export function MeetingControls({
   isCameraEnabled,
   isMicrophoneEnabled,
   isScreenShareEnabled,
+  isPartialShareActive,
   localParticipant,
   room,
+  onOpenPartialShare,
+  onStopPartialShare,
 }: MeetingControlsProps) {
   const router = useRouter();
   const [isLeaving, startTransition] = useTransition();
@@ -48,6 +55,15 @@ export function MeetingControls({
   async function leaveMeeting() {
     room.disconnect();
     startTransition(() => router.push("/"));
+  }
+
+  async function handlePartialShare() {
+    if (isPartialShareActive) {
+      await onStopPartialShare();
+      return;
+    }
+
+    onOpenPartialShare();
   }
 
   return (
@@ -75,6 +91,15 @@ export function MeetingControls({
       >
         <MonitorUp className="size-5" />
       </ControlButton>
+
+      <Button
+        variant={isPartialShareActive ? "default" : "secondary"}
+        className="rounded-2xl px-4"
+        onClick={handlePartialShare}
+      >
+        <Scan className="size-4" />
+        {isPartialShareActive ? "Stop Partial Share" : "Partial Share"}
+      </Button>
 
       <Button
         variant="destructive"
