@@ -13,6 +13,7 @@ import { LoaderCircle, Video } from "lucide-react";
 import { DisconnectReason } from "livekit-client";
 
 import { MeetingControls } from "@/components/meeting-controls";
+import { MeetingChat } from "@/components/meeting-chat";
 import {
   ActivePartialScreenShare,
   PartialScreenShareModal,
@@ -182,6 +183,7 @@ function MeetingShell({
   const activePartialShareRef = useRef<ActivePartialScreenShare | null>(null);
   const [isPartialShareModalOpen, setIsPartialShareModalOpen] = useState(false);
   const [isPartialShareActive, setIsPartialShareActive] = useState(false);
+  const [isChatOpen, setIsChatOpen] = useState(false);
   const {
     localParticipant,
     isCameraEnabled,
@@ -230,17 +232,27 @@ function MeetingShell({
       </header>
 
       <main className="flex flex-1 flex-col gap-6 px-4 py-4 sm:px-6 lg:px-8">
-        <VideoGrid />
+        <div className="grid flex-1 gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
+          <VideoGrid />
+          <MeetingChat
+            open={isChatOpen}
+            roomId={roomId}
+            userName={userName}
+            onClose={() => setIsChatOpen(false)}
+          />
+        </div>
         <div className="pb-2">
           <MeetingControls
             isCameraEnabled={isCameraEnabled}
             isMicrophoneEnabled={isMicrophoneEnabled}
             isScreenShareEnabled={isScreenShareEnabled}
             isPartialShareActive={isPartialShareActive}
+            isChatOpen={isChatOpen}
             localParticipant={localParticipant}
             room={room}
             onOpenPartialShare={() => setIsPartialShareModalOpen(true)}
             onStopPartialShare={stopPartialShare}
+            onToggleChat={() => setIsChatOpen((current) => !current)}
           />
         </div>
       </main>

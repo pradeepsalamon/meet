@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   Mic,
   MicOff,
+  MessageSquareText,
   MonitorUp,
   PhoneOff,
   Scan,
@@ -21,10 +22,12 @@ type MeetingControlsProps = {
   isMicrophoneEnabled: boolean;
   isScreenShareEnabled: boolean;
   isPartialShareActive: boolean;
+  isChatOpen: boolean;
   localParticipant: LocalParticipant;
   room: Room;
   onOpenPartialShare: () => void;
   onStopPartialShare: () => Promise<void>;
+  onToggleChat: () => void;
 };
 
 export function MeetingControls({
@@ -32,10 +35,12 @@ export function MeetingControls({
   isMicrophoneEnabled,
   isScreenShareEnabled,
   isPartialShareActive,
+  isChatOpen,
   localParticipant,
   room,
   onOpenPartialShare,
   onStopPartialShare,
+  onToggleChat,
 }: MeetingControlsProps) {
   const router = useRouter();
   const [isLeaving, startTransition] = useTransition();
@@ -99,6 +104,15 @@ export function MeetingControls({
       >
         <Scan className="size-4" />
         {isPartialShareActive ? "Stop Partial Share" : "Partial Share"}
+      </Button>
+
+      <Button
+        variant={isChatOpen ? "default" : "secondary"}
+        className="rounded-2xl px-4"
+        onClick={onToggleChat}
+      >
+        <MessageSquareText className="size-4" />
+        {isChatOpen ? "Hide Chat" : "Open Chat"}
       </Button>
 
       <Button
