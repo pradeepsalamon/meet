@@ -1,90 +1,75 @@
 # BlueRoom Jitsi
 
-Google Meet style room UI rebuilt with Next.js 16, TypeScript, Tailwind CSS, and a direct Jitsi Meet room embed.
+Google Meet style room UI rebuilt with Next.js 16, TypeScript, Tailwind CSS, and the low-level `lib-jitsi-meet` API.
 
-## Stack
+## What changed
 
-- Next.js 16 App Router
-- React 19
-- TypeScript
-- Tailwind CSS v4
-- Direct Jitsi Meet iframe embed
-- shadcn-style local UI primitives
-- lucide-react icons
+This app no longer uses a Jitsi iframe as the main meeting experience. The meeting page loads `https://<domain>/libs/lib-jitsi-meet.min.js`, connects with `JitsiMeetJS`, and renders the room with custom React components:
 
-## Features
-
-- Landing page with room and username inputs
-- Random room generator
-- Meeting page at `/meet/[roomId]`
-- Embedded Jitsi Meet conference at the configured room URL
-- Custom app header with Jitsi in-room controls inside the meeting frame
-- Jitsi in-room media, layout, and chat
-- Connection status
-- Dark mode
+- custom video grid and fullscreen tile view
+- custom local and remote participant tiles
+- custom mic, camera, screen share, partial share, chat, participant list, and leave controls
+- custom chat using Jitsi endpoint messages, with an in-memory app fallback
+- Jitsi local/remote track cleanup on leave and repeated toggles
+- server-side JaaS JWT generation at `POST /api/jitsi/token`
 
 ## Environment variables
 
 Copy `.env.example` to `.env.local`.
 
 ```env
+# Public Jitsi config
 NEXT_PUBLIC_JITSI_DOMAIN=8x8.vc
-NEXT_PUBLIC_JITSI_APP_ID=replace_with_jaas_app_id
-NEXT_PUBLIC_JITSI_ROOM_PREFIX=blueroom
-JITSI_APP_ID=replace_with_jaas_app_id
-JITSI_API_KEY_ID=replace_with_jaas_key_id
-JITSI_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nreplace_with_private_key\n-----END PRIVATE KEY-----"
+NEXT_PUBLIC_JITSI_APP_ID=
+NEXT_PUBLIC_JITSI_ROOM_PREFIX=nexagen
+
+# Server-side JaaS JWT config
+JITSI_APP_ID=
+JITSI_API_KEY_ID=
+JITSI_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nYOUR_PRIVATE_KEY_HERE\n-----END PRIVATE KEY-----"
 JITSI_TOKEN_TTL_SECONDS=3600
+
+# Optional self-hosted config
+# NEXT_PUBLIC_JITSI_DOMAIN=meet.yourdomain.com
+# NEXT_PUBLIC_JITSI_APP_ID=
 ```
 
-`NEXT_PUBLIC_JITSI_DOMAIN` can point to `8x8.vc` for Jitsi as a Service or your self-hosted Jitsi domain.
-`NEXT_PUBLIC_JITSI_APP_ID` is required for JaaS room URLs.
-`JITSI_API_KEY_ID` should be the full key id from the JaaS console.
-`JITSI_PRIVATE_KEY` signs the server-side JWT from `/api/jitsi/token`.
-Keep `JITSI_PRIVATE_KEY` as one env value. Either use escaped newlines as shown above, or put the full base64 key body on one line without line breaks.
-`NEXT_PUBLIC_JITSI_ROOM_PREFIX` defaults to `blueroom` and is prepended to app room names. The app also adds a stable short suffix, so public rooms are less generic while `/meet/[roomId]` stays shareable.
+Only `NEXT_PUBLIC_*` variables are safe for browser use. Never expose `JITSI_PRIVATE_KEY` to the frontend.
 
-Without JaaS credentials, the app can still point to `meet.jit.si` for quick demos, but public `meet.jit.si` embedded calls show the provider warning and disconnect after the demo window.
+For public `meet.jit.si`, JWT is usually not required. For 8x8 JaaS on `8x8.vc`, set `NEXT_PUBLIC_JITSI_APP_ID`, `JITSI_APP_ID`, `JITSI_API_KEY_ID`, and `JITSI_PRIVATE_KEY`.
 
-## Install
+## Partial screen sharing
 
-```bash
-pnpm install
-```
+Browsers cannot directly capture an arbitrary desktop rectangle. They can capture a full screen, window, or browser tab. The partial-share flow mirrors the LiveKit version where possible:
 
-or:
+1. The browser captures the selected screen/window/tab.
+2. The app shows a crop selector.
+3. The selected crop is rendered into a canvas.
+4. Jitsi publishes the processed canvas stream through a `lib-jitsi-meet` track effect.
+
+If the active Jitsi deployment does not expose track effects, the UI reports that limitation instead of pretending partial desktop-region capture works.
+
+## Run locally
 
 ```bash
 npm install
-```
-
-## Build
-
-```bash
-pnpm build
-```
-
-or:
-
-```bash
-npm run build
-```
-
-## Run
-
-```bash
-pnpm dev
+npm run dev
 ```
 
 Open `http://localhost:3000`.
 
-## How it works
+## Build checks
 
-1. Go to `/`
-2. Enter a room name and display name
-3. Join the session
-4. The app opens `/meet/[roomId]`
-5. When `NEXT_PUBLIC_JITSI_APP_ID` is set, the meeting page requests `/api/jitsi/token`
-6. The server signs a JaaS JWT using `JITSI_API_KEY_ID` and `JITSI_PRIVATE_KEY`
-7. The meeting page builds `https://<domain>/<appId>/<room>?jwt=<token>#...`
-8. Jitsi owns the in-call toolbar, chat, screen share, tile view, and hangup controls inside the meeting frame
+```bash
+npm run lint
+npx tsc --noEmit
+npm run build
+```
+
+## Routes
+
+- `/` - join form
+- `/meet/[roomId]?user=<name>` - custom Jitsi meeting room
+- `POST /api/jitsi/token` - signs a JaaS JWT from server-side env vars
+- `GET /api/jitsi/token?room=<room>&name=<name>` - compatibility smoke-check path
+- `/api/jitsi/chat` - in-memory fallback chat store

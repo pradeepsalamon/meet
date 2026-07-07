@@ -111,15 +111,3 @@ select {
   font: inherit;
 }
 
-.jitsi-frame-shell > div {
-  height: 100%;
-  min-height: 0;
-  width: 100%;
-}
-
-.jitsi-frame-shell iframe {
-  display: block;
-  height: 100% !important;
-  width: 100%;
-  border: 0;
-}

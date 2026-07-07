@@ -1,163 +1,103 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { LoaderCircle, Video } from "lucide-react";
 
+import { JitsiChatPanel } from "@/components/jitsi/JitsiChatPanel";
+import { JitsiPartialScreenShareModal } from "@/components/jitsi/JitsiPartialScreenShareModal";
+import { JitsiParticipantsPanel } from "@/components/jitsi/JitsiParticipantsPanel";
+import { JitsiToolbar } from "@/components/jitsi/JitsiToolbar";
+import { JitsiVideoGrid } from "@/components/jitsi/JitsiVideoGrid";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
-import { getJitsiAppId, getJitsiDomain, getJitsiRoomName } from "@/lib/meeting";
+import { useJitsiMeeting, type JitsiConnectionStatus } from "@/hooks/useJitsiMeeting";
 
 type MeetingRoomProps = {
   roomId: string;
   userName?: string;
 };
 
-type TokenState = {
-  error: string | null;
-  token: string | null;
-  url: string;
-};
+type SidePanel = "chat" | "participants" | null;
 
-function buildJitsiMeetingUrl({
-  appId,
-  displayName,
-  domain,
-  roomName,
-  token,
-}: {
-  appId: string;
-  displayName: string;
-  domain: string;
-  roomName: string;
-  token: string | null;
-}) {
-  const roomPath = appId
-    ? `/${encodeURIComponent(appId)}/${encodeURIComponent(roomName)}`
-    : `/${encodeURIComponent(roomName)}`;
-  const meetingUrl = new URL(`https://${domain}${roomPath}`);
-  const hashParams = new URLSearchParams({
-    "config.disableDeepLinking": "true",
-    "config.disableModeratorIndicator": "true",
-    "config.enableWelcomePage": "false",
-    "config.prejoinConfig.enabled": "false",
-    "config.prejoinPageEnabled": "false",
-    "config.startWithAudioMuted": "true",
-    "config.startWithVideoMuted": "true",
-    "interfaceConfig.DISABLE_JOIN_LEAVE_NOTIFICATIONS": "true",
-    "interfaceConfig.MOBILE_APP_PROMO": "false",
-    "interfaceConfig.VIDEO_LAYOUT_FIT": "nocrop",
-    "userInfo.displayName": JSON.stringify(displayName),
-  });
-
-  if (token) {
-    meetingUrl.searchParams.set("jwt", token);
+function getConnectionStatusLabel(status: JitsiConnectionStatus) {
+  switch (status) {
+    case "loading":
+      return "Loading Jitsi";
+    case "permissions":
+      return "Requesting media";
+    case "connecting":
+      return "Connecting";
+    case "joining":
+      return "Joining room";
+    case "connected":
+      return "Connected";
+    case "disconnected":
+      return "Disconnected";
+    case "error":
+      return "Needs attention";
+    default:
+      return "Idle";
   }
+}
 
-  meetingUrl.hash = hashParams.toString();
-
-  return meetingUrl.toString();
+function getLoadingMessage(status: JitsiConnectionStatus) {
+  switch (status) {
+    case "permissions":
+      return "Requesting camera and microphone permissions...";
+    case "connecting":
+      return "Connecting to the Jitsi deployment...";
+    case "joining":
+      return "Joining the Jitsi room...";
+    default:
+      return "Preparing your Jitsi meeting...";
+  }
 }
 
 export function MeetingRoom({ roomId, userName }: MeetingRoomProps) {
+  const router = useRouter();
+  const [isLeaving, startLeavingTransition] = useTransition();
   const hasUserName = Boolean(userName?.trim());
-  const displayName = userName?.trim().replace(/\s+/g, " ") ?? "Guest";
-  const jitsiDomain = getJitsiDomain();
-  const jitsiAppId = getJitsiAppId();
-  const jitsiRoomName = useMemo(() => getJitsiRoomName(roomId), [roomId]);
-  const tokenUrl = useMemo(() => {
-    if (!hasUserName || !jitsiAppId) {
-      return null;
+  const meeting = useJitsiMeeting({ roomId, userName });
+  const [sidePanel, setSidePanel] = useState<SidePanel>(null);
+  const [isPartialShareModalOpen, setIsPartialShareModalOpen] = useState(false);
+  const [readChatCount, setReadChatCount] = useState(0);
+  const isChatOpen = sidePanel === "chat";
+  const isParticipantListOpen = sidePanel === "participants";
+  const unreadChatCount = useMemo(
+    () =>
+      isChatOpen
+        ? 0
+        : Math.max(0, meeting.chatMessages.length - readChatCount),
+    [isChatOpen, meeting.chatMessages.length, readChatCount],
+  );
+
+  function closeSidePanel() {
+    if (sidePanel === "chat") {
+      setReadChatCount(meeting.chatMessages.length);
     }
 
-    const params = new URLSearchParams({
-      name: displayName,
-      room: jitsiRoomName,
-    });
+    setSidePanel(null);
+  }
 
-    return `/api/jitsi/token?${params.toString()}`;
-  }, [displayName, hasUserName, jitsiAppId, jitsiRoomName]);
-  const [tokenState, setTokenState] = useState<TokenState>({
-    error: null,
-    token: null,
-    url: "",
-  });
-  const activeToken = tokenState.url === tokenUrl ? tokenState.token : null;
-  const tokenError = tokenState.url === tokenUrl ? tokenState.error : null;
-  const isTokenLoading = Boolean(tokenUrl && !activeToken && !tokenError);
-  const meetingUrl = useMemo(
-    () =>
-      isTokenLoading || tokenError
-        ? null
-        : buildJitsiMeetingUrl({
-            appId: jitsiAppId,
-            displayName,
-            domain: jitsiDomain,
-            roomName: jitsiRoomName,
-            token: activeToken,
-          }),
-    [
-      activeToken,
-      displayName,
-      isTokenLoading,
-      jitsiAppId,
-      jitsiDomain,
-      jitsiRoomName,
-      tokenError,
-    ],
-  );
-  const [loadedFrameUrl, setLoadedFrameUrl] = useState<string | null>(null);
-  const isFrameLoaded = Boolean(meetingUrl && loadedFrameUrl === meetingUrl);
-  const isPublicMeetDemo = !jitsiAppId && jitsiDomain === "meet.jit.si";
-
-  useEffect(() => {
-    if (!tokenUrl) {
+  function toggleChatPanel() {
+    if (sidePanel === "chat") {
+      setReadChatCount(meeting.chatMessages.length);
+      setSidePanel(null);
       return;
     }
 
-    const controller = new AbortController();
-    const requestUrl = tokenUrl;
+    setSidePanel("chat");
+  }
 
-    async function loadToken() {
-      try {
-        const response = await fetch(requestUrl, {
-          cache: "no-store",
-          signal: controller.signal,
-        });
-        const data = (await response.json()) as {
-          error?: string;
-          token?: string;
-        };
-
-        if (!response.ok || !data.token) {
-          throw new Error(data.error ?? "Could not create the Jitsi token.");
-        }
-
-        setTokenState({
-          error: null,
-          token: data.token,
-          url: requestUrl,
-        });
-      } catch (error) {
-        if (controller.signal.aborted) {
-          return;
-        }
-
-        setTokenState({
-          error:
-            error instanceof Error
-              ? error.message
-              : "Could not create the Jitsi token.",
-          token: null,
-          url: requestUrl,
-        });
-      }
+  function toggleParticipantsPanel() {
+    if (sidePanel === "chat") {
+      setReadChatCount(meeting.chatMessages.length);
     }
 
-    void loadToken();
-
-    return () => controller.abort();
-  }, [tokenUrl]);
+    setSidePanel((current) => (current === "participants" ? null : "participants"));
+  }
 
   if (!hasUserName) {
     return (
@@ -171,6 +111,29 @@ export function MeetingRoom({ roomId, userName }: MeetingRoomProps) {
         }
       />
     );
+  }
+
+  if (meeting.status !== "connected" && meeting.error) {
+    return (
+      <MeetingState
+        title="Could not join meeting"
+        message={meeting.error}
+        action={
+          <Button asChild>
+            <Link href="/">Back to home</Link>
+          </Button>
+        }
+      />
+    );
+  }
+
+  if (meeting.status !== "connected" && !meeting.isJoined) {
+    return <MeetingState message={getLoadingMessage(meeting.status)} />;
+  }
+
+  async function handleLeaveMeeting() {
+    await meeting.leaveMeeting();
+    startLeavingTransition(() => router.push("/"));
   }
 
   return (
@@ -187,64 +150,94 @@ export function MeetingRoom({ roomId, userName }: MeetingRoomProps) {
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          <StatusPill
-            label={
-              tokenError
-                ? "Config needed"
-                : isTokenLoading
-                  ? "Signing room"
-                  : isFrameLoaded
-                    ? "Room loaded"
-                    : "Loading room"
-            }
-          />
-          <StatusPill label={`Jitsi: ${jitsiRoomName}`} subtle />
-          <StatusPill label={`You: ${displayName}`} subtle />
+          <StatusPill label={getConnectionStatusLabel(meeting.status)} />
+          <StatusPill label={`Jitsi: ${meeting.jitsiRoomName}`} subtle />
+          <StatusPill label={`You: ${meeting.displayName}`} subtle />
           <ThemeToggle />
         </div>
       </header>
 
-      <main className="flex min-h-0 flex-1 flex-col px-4 py-4 sm:px-6 lg:px-8">
-        {tokenError ? (
-          <div className="mb-4 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-            {tokenError}
+      <main className="flex flex-1 flex-col gap-6 px-4 py-4 sm:px-6 lg:px-8">
+        {meeting.error ? (
+          <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+            {meeting.error}
           </div>
         ) : null}
 
-        {isPublicMeetDemo ? (
-          <div className="mb-4 rounded-xl border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-200">
-            Public meet.jit.si embeds are demo-limited. Add JaaS credentials in
-            .env.local to remove the embedded demo warning.
+        {!meeting.appId && meeting.domain === "meet.jit.si" ? (
+          <div className="rounded-xl border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-200">
+            Public meet.jit.si is useful for quick demos, but production rooms should use
+            JaaS or a self-hosted Jitsi deployment.
           </div>
         ) : null}
 
-        <section className="jitsi-frame-shell relative flex min-h-0 flex-1 overflow-hidden rounded-[1.5rem] border border-border/70 bg-neutral-950 shadow-2xl shadow-neutral-950/15">
-          {!isFrameLoaded ? <MeetingFrameLoader /> : null}
-          {meetingUrl ? (
-            <iframe
-              key={meetingUrl}
-              title={`Jitsi meeting ${roomId}`}
-              src={meetingUrl}
-              allow="camera; microphone; display-capture; fullscreen; clipboard-write; autoplay"
-              allowFullScreen
-              referrerPolicy="strict-origin-when-cross-origin"
-              className="h-full min-h-[58vh] w-full border-0"
-              onLoad={() => setLoadedFrameUrl(meetingUrl)}
+        <div
+          className={`grid flex-1 gap-6 ${
+            sidePanel ? "xl:grid-cols-[minmax(0,1fr)_22rem]" : ""
+          }`}
+        >
+          <JitsiVideoGrid participants={meeting.participants} />
+
+          {isChatOpen ? (
+            <JitsiChatPanel
+              currentUser={meeting.displayName}
+              isLoading={meeting.isLoadingChat}
+              messages={meeting.chatMessages}
+              open={isChatOpen}
+              roomId={roomId}
+              onClose={closeSidePanel}
+              onLoadMessages={meeting.loadChatMessages}
+              onSendMessage={meeting.sendChatMessage}
             />
           ) : null}
-        </section>
-      </main>
-    </div>
-  );
-}
 
-function MeetingFrameLoader() {
-  return (
-    <div className="absolute inset-0 z-10 flex items-center justify-center bg-neutral-950 text-white">
-      <div className="text-center">
-        <LoaderCircle className="mx-auto size-10 animate-spin text-primary" />
-        <p className="mt-4 text-sm text-white/72">Loading Jitsi Meet...</p>
-      </div>
+          {isParticipantListOpen ? (
+            <JitsiParticipantsPanel
+              open={isParticipantListOpen}
+              participants={meeting.participants}
+              onClose={closeSidePanel}
+            />
+          ) : null}
+        </div>
+
+        <div className="pb-2">
+          <JitsiToolbar
+            isCameraEnabled={meeting.isCameraEnabled}
+            isChatOpen={isChatOpen}
+            isLeaving={isLeaving}
+            isMicEnabled={meeting.isMicEnabled}
+            isParticipantListOpen={isParticipantListOpen}
+            isPartialScreenSharing={meeting.isPartialScreenSharing}
+            isScreenSharing={meeting.isScreenSharing}
+            unreadChatCount={unreadChatCount}
+            onLeave={() => {
+              void handleLeaveMeeting();
+            }}
+            onToggleCamera={meeting.toggleCamera}
+            onToggleChat={toggleChatPanel}
+            onToggleMicrophone={meeting.toggleMicrophone}
+            onToggleParticipants={toggleParticipantsPanel}
+            onTogglePartialShare={() => {
+              if (meeting.isPartialScreenSharing) {
+                void meeting.stopScreenShare();
+                return;
+              }
+
+              setIsPartialShareModalOpen(true);
+            }}
+            onToggleScreenShare={meeting.toggleScreenShare}
+          />
+        </div>
+      </main>
+
+      {isPartialShareModalOpen ? (
+        <JitsiPartialScreenShareModal
+          open={isPartialShareModalOpen}
+          onClose={() => setIsPartialShareModalOpen(false)}
+          onCreatePreviewTrack={meeting.createPartialSharePreviewTrack}
+          onStartPartialShare={meeting.startPartialScreenShare}
+        />
+      ) : null}
     </div>
   );
 }

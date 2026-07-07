@@ -8,17 +8,17 @@ import { ThemeToggle } from "@/components/theme-toggle";
 const featureItems = [
   {
     label: "Media",
-    value: "Jitsi audio, camera, and screen share",
+    value: "Custom Jitsi audio, camera, and screen share",
     Icon: Video,
   },
   {
     label: "Room UI",
-    value: "Embedded Jitsi Meet conference",
+    value: "App-owned grid, toolbar, and panels",
     Icon: Grid2X2,
   },
   {
     label: "Chat",
-    value: "Jitsi in-room messaging",
+    value: "Custom chat with Jitsi data messages",
     Icon: MessageSquareText,
   },
 ];
@@ -46,14 +46,14 @@ export default function HomePage() {
           <div className="max-w-2xl">
             <span className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-background/80 px-4 py-1 text-sm text-muted-foreground shadow-sm backdrop-blur">
               <MonitorUp className="size-4 text-primary" />
-              Next.js 16 + Jitsi room embed
+              Next.js 16 + low-level Jitsi client
             </span>
             <h2 className="mt-6 text-4xl font-semibold tracking-tight text-balance sm:text-5xl lg:text-6xl">
-              A clean meeting room shell around Jitsi Meet.
+              A custom meeting room powered by Jitsi.
             </h2>
             <p className="mt-5 max-w-xl text-lg leading-8 text-muted-foreground">
-              Create a room, share the link, and use Jitsi for live video,
-              audio, chat, tile view, and screen sharing.
+              Create a room, share the link, and use a custom React UI for
+              video, audio, chat, participants, and screen sharing.
             </p>
 
             <div className="mt-8 grid gap-4 sm:grid-cols-3">

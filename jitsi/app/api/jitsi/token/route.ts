@@ -7,6 +7,11 @@ import { sanitizeRoomSegment } from "@/lib/meeting";
 
 export const runtime = "nodejs";
 
+type TokenRequestBody = {
+  displayName?: string;
+  roomName?: string;
+};
+
 function base64Url(value: Buffer | string) {
   return Buffer.from(value).toString("base64url");
 }
@@ -117,15 +122,13 @@ function signJwt(
   return `${unsignedToken}.${base64Url(signature)}`;
 }
 
-function cleanDisplayName(value: string | null) {
-  const displayName = value?.trim().replace(/\s+/g, " ");
+function cleanDisplayName(value: string | null | undefined) {
+  const displayName = value?.trim().replace(/\s+/g, " ").slice(0, 64);
 
   return displayName || "Guest";
 }
 
-export async function GET(request: NextRequest) {
-  const room = sanitizeRoomSegment(request.nextUrl.searchParams.get("room") ?? "");
-  const name = cleanDisplayName(request.nextUrl.searchParams.get("name"));
+function createTokenResponse({ name, room }: { name: string; room: string }) {
   const appId = process.env.JITSI_APP_ID?.trim() || process.env.NEXT_PUBLIC_JITSI_APP_ID?.trim();
   const keyId = process.env.JITSI_API_KEY_ID?.trim();
   const privateKey = getPrivateKey();
@@ -184,7 +187,9 @@ export async function GET(request: NextRequest) {
 
   try {
     return Response.json({
+      appId,
       expiresAt,
+      roomName: room,
       token: signJwt(payload, normalizePrivateKey(privateKey), keyId),
     });
   } catch {
@@ -193,4 +198,26 @@ export async function GET(request: NextRequest) {
       { status: 500 },
     );
   }
+}
+
+export async function POST(request: Request) {
+  let body: TokenRequestBody | undefined;
+
+  try {
+    body = (await request.json()) as TokenRequestBody;
+  } catch {
+    return Response.json({ error: "Invalid JSON body." }, { status: 400 });
+  }
+
+  const room = sanitizeRoomSegment(body?.roomName ?? "");
+  const name = cleanDisplayName(body?.displayName);
+
+  return createTokenResponse({ name, room });
+}
+
+export async function GET(request: NextRequest) {
+  const room = sanitizeRoomSegment(request.nextUrl.searchParams.get("room") ?? "");
+  const name = cleanDisplayName(request.nextUrl.searchParams.get("name"));
+
+  return createTokenResponse({ name, room });
 }
