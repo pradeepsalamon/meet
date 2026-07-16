@@ -14,6 +14,7 @@ import { DisconnectReason } from "livekit-client";
 
 import { MeetingControls } from "@/components/meeting-controls";
 import { MeetingChat } from "@/components/meeting-chat";
+import { MeetingChess } from "@/components/meeting-chess";
 import {
   ActivePartialScreenShare,
   PartialScreenShareModal,
@@ -184,6 +185,7 @@ function MeetingShell({
   const [isPartialShareModalOpen, setIsPartialShareModalOpen] = useState(false);
   const [isPartialShareActive, setIsPartialShareActive] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const [isChessOpen, setIsChessOpen] = useState(false);
   const {
     localParticipant,
     isCameraEnabled,
@@ -240,6 +242,11 @@ function MeetingShell({
             userName={userName}
             onClose={() => setIsChatOpen(false)}
           />
+          <MeetingChess
+            open={isChessOpen}
+            userName={userName}
+            onClose={() => setIsChessOpen(false)}
+          />
         </div>
         <div className="pb-2">
           <MeetingControls
@@ -248,11 +255,25 @@ function MeetingShell({
             isScreenShareEnabled={isScreenShareEnabled}
             isPartialShareActive={isPartialShareActive}
             isChatOpen={isChatOpen}
+            isChessOpen={isChessOpen}
             localParticipant={localParticipant}
             room={room}
             onOpenPartialShare={() => setIsPartialShareModalOpen(true)}
             onStopPartialShare={stopPartialShare}
-            onToggleChat={() => setIsChatOpen((current) => !current)}
+            onToggleChat={() =>
+              setIsChatOpen((current) => {
+                const next = !current;
+                if (next) setIsChessOpen(false);
+                return next;
+              })
+            }
+            onToggleChess={() =>
+              setIsChessOpen((current) => {
+                const next = !current;
+                if (next) setIsChatOpen(false);
+                return next;
+              })
+            }
           />
         </div>
       </main>

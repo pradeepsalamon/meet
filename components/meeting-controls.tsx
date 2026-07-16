@@ -3,6 +3,7 @@
 import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
+  Crown,
   Mic,
   MicOff,
   MessageSquareText,
@@ -23,11 +24,13 @@ type MeetingControlsProps = {
   isScreenShareEnabled: boolean;
   isPartialShareActive: boolean;
   isChatOpen: boolean;
+  isChessOpen: boolean;
   localParticipant: LocalParticipant;
   room: Room;
   onOpenPartialShare: () => void;
   onStopPartialShare: () => Promise<void>;
   onToggleChat: () => void;
+  onToggleChess: () => void;
 };
 
 export function MeetingControls({
@@ -36,11 +39,13 @@ export function MeetingControls({
   isScreenShareEnabled,
   isPartialShareActive,
   isChatOpen,
+  isChessOpen,
   localParticipant,
   room,
   onOpenPartialShare,
   onStopPartialShare,
   onToggleChat,
+  onToggleChess,
 }: MeetingControlsProps) {
   const router = useRouter();
   const [isLeaving, startTransition] = useTransition();
@@ -113,6 +118,15 @@ export function MeetingControls({
       >
         <MessageSquareText className="size-4" />
         {isChatOpen ? "Hide Chat" : "Open Chat"}
+      </Button>
+
+      <Button
+        variant={isChessOpen ? "default" : "secondary"}
+        className="rounded-2xl px-4"
+        onClick={onToggleChess}
+      >
+        <Crown className="size-4" />
+        {isChessOpen ? "Hide Chess" : "Play Chess"}
       </Button>
 
       <Button
